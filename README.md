@@ -4,7 +4,7 @@
 
 ## 🚀 서비스 접속 (모바일/PC)
 이 프로젝트는 GitHub Pages를 통해 배포됩니다.
-- **주소**: `https://[사용자ID].github.io/aion2-manager/`
+- **주소**: [https://yulxwell.github.io/aion2-manager/](https://yulxwell.github.io/aion2-manager/)
 
 ## ✨ 주요 기능
 - **실시간 충전 계산**: KST 기준 충전 주기(5시, 13시, 21시 등)에 맞춰 남은 시간 및 다음 충전 시각 표시
