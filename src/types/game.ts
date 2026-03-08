@@ -16,7 +16,7 @@ export interface TrackerStatus {
 export interface Character {
   id: string;
   name: string;
-  server: string;
+  server?: string; // Optional for backward compatibility, now at Account level
   class: string;
   trackers: TrackerStatus[];
 }
@@ -24,6 +24,7 @@ export interface Character {
 export interface Account {
   id: string;
   name: string;
+  server: string;
   characters: Character[];
 }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Account } from './types/game';
 import { AION2_SERVERS, AION2_CLASSES, INITIAL_TRACKERS } from './types/game';
-import { Users, Plus, Clock } from 'lucide-react';
+import { Users, Plus, Clock, Download, Upload, Save } from 'lucide-react';
 import { calculateCurrentStatus } from './utils/ticketCalculator';
 
 function App() {
@@ -44,10 +44,20 @@ function App() {
 
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
+  const [newAccountServer, setNewAccountServer] = useState(AION2_SERVERS[0]);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
     console.log('Accounts updated:', accounts);
-    localStorage.setItem('aion2_rmt_data', JSON.stringify(accounts));
+    setSaveStatus('saving');
+    try {
+      localStorage.setItem('aion2_rmt_data', JSON.stringify(accounts));
+      setTimeout(() => setSaveStatus('saved'), 500);
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } catch (e) {
+      console.error('Failed to save to localStorage', e);
+      setSaveStatus('error');
+    }
   }, [accounts]);
 
   const addAccount = () => {
@@ -55,6 +65,7 @@ function App() {
     const newAccount: Account = {
       id: Date.now().toString(),
       name: newAccountName,
+      server: newAccountServer,
       characters: []
     };
     setAccounts([...accounts, newAccount]);
@@ -62,31 +73,105 @@ function App() {
     setIsAddingAccount(false);
   };
 
+  const exportData = () => {
+    const data = JSON.stringify(accounts, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aion2_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target?.result as string);
+        if (Array.isArray(parsed)) {
+          setAccounts(parsed);
+          alert('데이터를 성공적으로 불러왔습니다.');
+        }
+      } catch (err) {
+        alert('파일을 읽는 중 오류가 발생했습니다.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="app-container" style={{ minHeight: '100vh', display: 'block' }}>
-      <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1>아이온2 쌀먹관리기</h1>
           <p style={{ color: '#94a3b8' }}>티켓 충전 상태를 실시간으로 확인하세요</p>
         </div>
-        <button onClick={() => setIsAddingAccount(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Plus size={20} /> 계정 추가
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ 
+            fontSize: '0.8rem', 
+            color: saveStatus === 'error' ? '#ef4444' : saveStatus === 'saved' ? '#10b981' : '#94a3b8',
+            transition: 'all 0.3s ease',
+            opacity: saveStatus === 'idle' ? 0 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <Save size={14} /> {saveStatus === 'saving' ? '저장 중...' : saveStatus === 'saved' ? '저장됨' : '저장 오류'}
+          </span>
+          <button onClick={exportData} title="백업 내보내기" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#334155' }}>
+            <Download size={18} /> 백업
+          </button>
+          <label style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            background: '#334155', 
+            padding: '10px 16px', 
+            borderRadius: '0.5rem', 
+            cursor: 'pointer',
+            fontSize: '1rem',
+            fontWeight: 600
+          }}>
+            <Upload size={18} /> 복구
+            <input type="file" accept=".json" onChange={importData} style={{ display: 'none' }} />
+          </label>
+          <button onClick={() => setIsAddingAccount(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Plus size={20} /> 계정 추가
+          </button>
+        </div>
       </header>
 
       {isAddingAccount && (
         <div className="card fade-in" style={{ marginBottom: '2rem' }}>
           <h3>새 계정 등록</h3>
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-            <input 
-              type="text" 
-              placeholder="계정 이름 (예: 부계정1)" 
-              value={newAccountName}
-              onChange={(e) => setNewAccountName(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <button onClick={addAccount}>확인</button>
-            <button onClick={() => setIsAddingAccount(false)} style={{ background: '#334155', color: '#f8fafc' }}>취소</button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '1rem', alignItems: 'flex-end' }}>
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>계정 이름</label>
+              <input 
+                type="text" 
+                placeholder="예: 부계정1" 
+                value={newAccountName}
+                onChange={(e) => setNewAccountName(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ width: '150px' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>기본 서버</label>
+              <select 
+                value={newAccountServer} 
+                onChange={(e) => setNewAccountServer(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                {AION2_SERVERS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={addAccount}>확인</button>
+              <button onClick={() => setIsAddingAccount(false)} style={{ background: '#334155', color: '#f8fafc' }}>취소</button>
+            </div>
           </div>
         </div>
       )}
@@ -112,7 +197,6 @@ function App() {
 function AccountCard({ account, setAccounts }: { account: Account, setAccounts: React.Dispatch<React.SetStateAction<Account[]>> }) {
   const [isAddingChar, setIsAddingChar] = useState(false);
   const [charName, setCharName] = useState('');
-  const [charServer, setCharServer] = useState(AION2_SERVERS[0]);
   const [charClass, setCharClass] = useState(AION2_CLASSES[0]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [confirmingDeleteCharId, setConfirmingDeleteCharId] = useState<string | null>(null);
@@ -122,7 +206,6 @@ function AccountCard({ account, setAccounts }: { account: Account, setAccounts: 
     const newChar = {
       id: Date.now().toString(),
       name: charName,
-      server: charServer,
       class: charClass,
       trackers: INITIAL_TRACKERS.map(t => ({ ...t, lastUpdatedAt: Date.now() }))
     };
@@ -188,8 +271,13 @@ function AccountCard({ account, setAccounts }: { account: Account, setAccounts: 
   return (
     <div className="card fade-in" style={{ borderColor: 'rgba(56, 189, 248, 0.2)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Users size={20} /> {account.name}
+        <h2 style={{ margin: 0, fontSize: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Users size={20} /> {account.name}
+          </div>
+          <div style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 400, marginTop: '2px', marginLeft: '28px' }}>
+            {account.server}
+          </div>
         </h2>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {!showDeleteConfirm ? (
@@ -226,16 +314,6 @@ function AccountCard({ account, setAccounts }: { account: Account, setAccounts: 
             />
           </div>
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>서버 선택</label>
-            <select 
-              value={charServer} 
-              onChange={(e) => setCharServer(e.target.value)}
-              style={{ width: '100%' }}
-            >
-              {AION2_SERVERS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>클래스 선택</label>
             <select 
               value={charClass} 
@@ -262,7 +340,7 @@ function AccountCard({ account, setAccounts }: { account: Account, setAccounts: 
                 <span style={{ fontWeight: 600 }}>
                   {char.name} 
                   <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400, marginLeft: '4px' }}>
-                    ({char.server} / {char.class})
+                    ({char.class})
                   </span>
                 </span>
                 <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
