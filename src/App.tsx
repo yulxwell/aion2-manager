@@ -46,48 +46,71 @@ function App() {
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountServer, setNewAccountServer] = useState(AION2_SERVERS[0]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [syncId, setSyncId] = useState<string | null>(() => {
+  const [ghToken, setGhToken] = useState<string>(() => {
+    return localStorage.getItem('aion2_gh_token') || '';
+  });
+
+  const [gistId, setGistId] = useState<string | null>(() => {
     const hashId = window.location.hash.replace('#', '');
-    return hashId || localStorage.getItem('aion2_sync_id');
+    return hashId || localStorage.getItem('aion2_gist_id');
   });
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [inputSyncId, setInputSyncId] = useState('');
 
   useEffect(() => {
-    if (syncId) {
-      localStorage.setItem('aion2_sync_id', syncId);
-      window.location.hash = syncId;
+    localStorage.setItem('aion2_gh_token', ghToken);
+  }, [ghToken]);
+
+  useEffect(() => {
+    if (gistId) {
+      localStorage.setItem('aion2_gist_id', gistId);
+      window.location.hash = gistId;
     } else {
-      localStorage.removeItem('aion2_sync_id');
+      localStorage.removeItem('aion2_gist_id');
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
       }
     }
-  }, [syncId]);
+  }, [gistId]);
+
+  const API_BASE_URL = 'https://api.github.com/gists';
+
+  const getHeaders = () => ({
+    'Accept': 'application/vnd.github+json',
+    'Authorization': `Bearer ${ghToken}`,
+    'X-GitHub-Api-Version': '2022-11-28'
+  });
 
   const saveToCloud = async (data: Account[], id: string) => {
+    if (!ghToken) return;
     try {
       setSaveStatus('saving');
-      const response = await fetch(`https://jsonblob.com/api/jsonBlob/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+      const response = await fetch(`${API_BASE_URL}/${id}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          description: 'Aion2 Manager Data',
+          files: {
+            'aion2_data.json': {
+              content: JSON.stringify(data, null, 2)
+            }
+          }
+        })
       });
-      if (!response.ok) throw new Error('Cloud save failed');
+      if (!response.ok) throw new Error(`Status: ${response.status}`);
       setSaveStatus('saved');
     } catch (e) {
-      console.error('Cloud save error:', e);
+      console.error('Gist save error:', e);
       setSaveStatus('error');
     }
   };
 
   useEffect(() => {
     localStorage.setItem('aion2_rmt_data', JSON.stringify(accounts));
-    
-    if (syncId) {
+    if (gistId) {
       const handler = setTimeout(() => {
-        saveToCloud(accounts, syncId);
+        saveToCloud(accounts, gistId);
       }, 2000);
       return () => clearTimeout(handler);
     } else {
@@ -97,51 +120,70 @@ function App() {
         setTimeout(() => setSaveStatus('idle'), 3000);
       }, 500);
     }
-  }, [accounts, syncId]);
+  }, [accounts, gistId]);
 
-  // Load cloud data on initial mount if syncId exists
   useEffect(() => {
     const initCloudData = async () => {
       const hashId = window.location.hash.replace('#', '');
-      const initialId = hashId || localStorage.getItem('aion2_sync_id');
-      if (initialId && accounts.length === 0) {
+      const initialId = hashId || localStorage.getItem('aion2_gist_id');
+      if (initialId && accounts.length === 0 && ghToken) {
         setIsSyncing(true);
         try {
-          const response = await fetch(`https://jsonblob.com/api/jsonBlob/${initialId}`);
+          const response = await fetch(`${API_BASE_URL}/${initialId}`, {
+            headers: getHeaders()
+          });
           if (response.ok) {
             const data = await response.json();
-            if (Array.isArray(data)) setAccounts(data);
+            const file = data.files['aion2_data.json'];
+            if (file && file.content) {
+              const parsed = JSON.parse(file.content);
+              if (Array.isArray(parsed)) setAccounts(parsed);
+            }
           }
         } catch (e) {
-          console.error('Initial sync failed');
+          console.error('Initial sync failed:', e);
         } finally {
           setIsSyncing(false);
         }
       }
     };
     initCloudData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startCloudSync = async () => {
+    if (!ghToken.trim()) {
+      alert('동기화를 시작하려면 GitHub 토큰이 필요합니다.');
+      return;
+    }
     setIsSyncing(true);
     try {
-      const response = await fetch('https://jsonblob.com/api/jsonBlob', {
+      const response = await fetch(API_BASE_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(accounts)
+        headers: getHeaders(),
+        body: JSON.stringify({
+          description: 'Aion2 Manager Data',
+          public: false,
+          files: {
+            'aion2_data.json': {
+              content: JSON.stringify(accounts, null, 2)
+            }
+          }
+        })
       });
       if (response.ok) {
-        const location = response.headers.get('Location');
-        if (location) {
-          const id = location.split('/').pop();
-          if (id) {
-            setSyncId(id);
-            alert('클라우드 동기화가 활성화되었습니다!');
-          }
+        const data = await response.json();
+        if (data.id) {
+          setGistId(data.id);
+          alert('GitHub Gist 동기화가 활성화되었습니다!');
         }
+      } else {
+        const errorText = await response.text();
+        console.error('Gist creation failed:', response.status, errorText);
+        alert(`Gist 생성 실패: ${response.status}\n토큰 권한(gist)을 확인해주세요.`);
       }
-    } catch (e) {
-      alert('클라우드 서버 연결에 실패했습니다.');
+    } catch (e: any) {
+      console.error('Sync process error:', e);
+      alert(`연결 실패: ${e.message || '네트워크 오류'}`);
     } finally {
       setIsSyncing(false);
     }
@@ -149,20 +191,28 @@ function App() {
 
   const joinSync = async (idToJoin?: string) => {
     const id = idToJoin || inputSyncId;
-    if (!id.trim()) return;
+    if (!id.trim() || !ghToken) return;
     setIsSyncing(true);
     try {
-      const response = await fetch(`https://jsonblob.com/api/jsonBlob/${id}`);
+      const response = await fetch(`${API_BASE_URL}/${id}`, {
+        headers: getHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
-        if (Array.isArray(data)) {
-          setAccounts(data);
-          setSyncId(id);
-          setShowSyncModal(false);
-          alert('동기화에 성공했습니다!');
+        const file = data.files['aion2_data.json'];
+        if (file && file.content) {
+          const parsed = JSON.parse(file.content);
+          if (Array.isArray(parsed)) {
+            setAccounts(parsed);
+            setGistId(id);
+            setShowSyncModal(false);
+            alert('동기화에 성공했습니다!');
+            return;
+          }
         }
+        alert('Gist 데이터를 찾을 수 없습니다.');
       } else {
-        alert('잘못된 동기화 코드이거나 데이터를 찾을 수 없습니다.');
+        alert('잘못된 Gist ID이거나 접근 권한이 없습니다.');
       }
     } catch (e) {
       alert('데이터를 불러오는 중 오류가 발생했습니다.');
@@ -172,16 +222,22 @@ function App() {
   };
 
   const refreshSync = async () => {
-    if (!syncId) return;
+    if (!gistId || !ghToken) return;
     setIsSyncing(true);
     try {
-      const response = await fetch(`https://jsonblob.com/api/jsonBlob/${syncId}`);
+      const response = await fetch(`${API_BASE_URL}/${gistId}`, {
+        headers: getHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
-        if (Array.isArray(data)) {
-          setAccounts(data);
-          setSaveStatus('saved');
-          setTimeout(() => setSaveStatus('idle'), 2000);
+        const file = data.files['aion2_data.json'];
+        if (file && file.content) {
+          const parsed = JSON.parse(file.content);
+          if (Array.isArray(parsed)) {
+            setAccounts(parsed);
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus('idle'), 2000);
+          }
         }
       }
     } catch (e) {
@@ -192,9 +248,9 @@ function App() {
   };
 
   const getSyncUrl = () => {
-    if (!syncId) return window.location.href.split('#')[0];
+    if (!gistId) return window.location.href.split('#')[0];
     const baseUrl = window.location.href.split('#')[0];
-    return `${baseUrl}#${syncId}`;
+    return `${baseUrl}#${gistId}`;
   };
 
   const addAccount = () => {
@@ -265,15 +321,15 @@ function App() {
               display: 'flex', 
               alignItems: 'center', 
               gap: '8px', 
-              background: syncId ? '#0369a1' : '#334155',
-              borderColor: syncId ? '#0ea5e9' : 'transparent'
+              background: gistId ? '#0369a1' : '#334155',
+              borderColor: gistId ? '#0ea5e9' : 'transparent'
             }}
           >
-            {syncId ? <Cloud size={18} /> : <CloudOff size={18} />}
-            {syncId ? '동기화 중' : '클라우드 동기화'}
+            {gistId ? <Cloud size={18} /> : <CloudOff size={18} />}
+            {gistId ? '동기화 중' : '클라우드 동기화'}
           </button>
 
-          {syncId && (
+          {gistId && (
             <button onClick={refreshSync} title="새로고침" style={{ padding: '10px', background: '#334155' }}>
               <RefreshCw size={18} className={isSyncing ? 'spin' : ''} />
             </button>
@@ -315,7 +371,7 @@ function App() {
               <button onClick={() => setShowSyncModal(false)} style={{ background: 'transparent', padding: '4px' }}>✕</button>
             </div>
 
-            {syncId ? (
+            {gistId ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
                   <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#94a3b8' }}>이 주소를 북마크하거나 폰으로 공유하세요</p>
@@ -340,14 +396,25 @@ function App() {
                     }} style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>링크 복사</button>
                   </div>
                 </div>
+
+                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <label style={{ display: 'block', margin: '0 0 10px 0', fontSize: '0.9rem', color: '#94a3b8' }}>GitHub Personal Token</label>
+                  <input 
+                    type="password" 
+                    value={ghToken}
+                    onChange={e => setGhToken(e.target.value)}
+                    placeholder="ghp_... 입력" 
+                    style={{ width: '100%', boxSizing: 'border-box' }}
+                  />
+                </div>
                 
                 <div style={{ display: 'flex', gap: '1rem' }}>
                   <button onClick={refreshSync} disabled={isSyncing} style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '8px' }}>
                     <RefreshCw size={18} className={isSyncing ? 'spin' : ''} /> 지금 새로고침
                   </button>
                   <button onClick={() => {
-                    if (confirm('동기화를 중단하시겠습니까? 주소의 코드가 삭제되며 로컬 데이터만 남습니다.')) {
-                      setSyncId(null);
+                    if (confirm('동기화를 중단하시겠습니까? Gist 연결이 해제됩니다.')) {
+                      setGistId(null);
                       setShowSyncModal(false);
                     }
                   }} style={{ flex: 1, background: '#ef4444', color: 'white' }}>동기화 해제</button>
@@ -355,28 +422,42 @@ function App() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                  <p style={{ color: '#cbd5e1' }}>클라우드 동기화를 통해 여러 기기에서<br/>실시간으로 데이터를 공유할 수 있습니다.</p>
+                <div style={{ textAlign: 'center', padding: '1rem 0', background: 'rgba(15, 23, 42, 0.5)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <h3 style={{ margin: '0 0 1rem 0', color: '#e0e0e0', fontSize: '1rem' }}>GitHub Gist 동기화 설정</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', lineHeight: '1.5', marginBottom: '1rem' }}>
+                    데이터를 안전하게 내 GitHub Gist에 저장합니다.<br/>
+                    발급받은 <strong>Personal Access Token (classic)</strong>을 입력해주세요.
+                  </p>
+                  <input 
+                    type="password" 
+                    placeholder="ghp_... GitHub 토큰 입력" 
+                    value={ghToken}
+                    onChange={e => setGhToken(e.target.value)}
+                    style={{ width: '90%', padding: '10px', textAlign: 'center' }}
+                  />
+                </div>
+
+                <div style={{ textAlign: 'center' }}>
                   <button 
                     onClick={startCloudSync} 
-                    disabled={isSyncing}
-                    style={{ marginTop: '1rem', padding: '12px 24px', fontSize: '1.1rem' }}
+                    disabled={isSyncing || !ghToken.trim()}
+                    style={{ width: '100%', padding: '12px 24px', fontSize: '1.1rem', opacity: ghToken.trim() ? 1 : 0.5 }}
                   >
-                    새 클라우드 동기화 시작
+                    새 Gist 동기화 시작
                   </button>
                 </div>
 
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#94a3b8' }}>기존 동기화 코드로 참여하기</p>
+                  <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#94a3b8' }}>기존 Gist ID로 참여하기</p>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input 
                       type="text" 
-                      placeholder="동기화 코드 입력" 
+                      placeholder="Gist ID 입력" 
                       value={inputSyncId}
                       onChange={e => setInputSyncId(e.target.value)}
                       style={{ flex: 1 }}
                     />
-                    <button onClick={() => joinSync()} disabled={isSyncing}>참여</button>
+                    <button onClick={() => joinSync()} disabled={isSyncing || !ghToken.trim()}>참여</button>
                   </div>
                 </div>
               </div>
