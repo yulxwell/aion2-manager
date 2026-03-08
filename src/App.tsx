@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Account } from './types/game';
 import { AION2_SERVERS, AION2_CLASSES, INITIAL_TRACKERS } from './types/game';
-import { Users, Plus, Clock, Download, Upload, Save } from 'lucide-react';
+import { Users, Plus, Clock, Download, Upload, Save, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { calculateCurrentStatus } from './utils/ticketCalculator';
 
 function App() {
@@ -46,19 +46,156 @@ function App() {
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountServer, setNewAccountServer] = useState(AION2_SERVERS[0]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [syncId, setSyncId] = useState<string | null>(() => {
+    const hashId = window.location.hash.replace('#', '');
+    return hashId || localStorage.getItem('aion2_sync_id');
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [inputSyncId, setInputSyncId] = useState('');
 
   useEffect(() => {
-    console.log('Accounts updated:', accounts);
-    setSaveStatus('saving');
+    if (syncId) {
+      localStorage.setItem('aion2_sync_id', syncId);
+      window.location.hash = syncId;
+    } else {
+      localStorage.removeItem('aion2_sync_id');
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+  }, [syncId]);
+
+  const saveToCloud = async (data: Account[], id: string) => {
     try {
-      localStorage.setItem('aion2_rmt_data', JSON.stringify(accounts));
-      setTimeout(() => setSaveStatus('saved'), 500);
-      setTimeout(() => setSaveStatus('idle'), 3000);
+      setSaveStatus('saving');
+      const response = await fetch(`https://jsonblob.com/api/jsonBlob/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Cloud save failed');
+      setSaveStatus('saved');
     } catch (e) {
-      console.error('Failed to save to localStorage', e);
+      console.error('Cloud save error:', e);
       setSaveStatus('error');
     }
-  }, [accounts]);
+  };
+
+  useEffect(() => {
+    localStorage.setItem('aion2_rmt_data', JSON.stringify(accounts));
+    
+    if (syncId) {
+      const handler = setTimeout(() => {
+        saveToCloud(accounts, syncId);
+      }, 2000);
+      return () => clearTimeout(handler);
+    } else {
+      setSaveStatus('saving');
+      setTimeout(() => {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      }, 500);
+    }
+  }, [accounts, syncId]);
+
+  // Load cloud data on initial mount if syncId exists
+  useEffect(() => {
+    const initCloudData = async () => {
+      const hashId = window.location.hash.replace('#', '');
+      const initialId = hashId || localStorage.getItem('aion2_sync_id');
+      if (initialId && accounts.length === 0) {
+        setIsSyncing(true);
+        try {
+          const response = await fetch(`https://jsonblob.com/api/jsonBlob/${initialId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data)) setAccounts(data);
+          }
+        } catch (e) {
+          console.error('Initial sync failed');
+        } finally {
+          setIsSyncing(false);
+        }
+      }
+    };
+    initCloudData();
+  }, []);
+
+  const startCloudSync = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('https://jsonblob.com/api/jsonBlob', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(accounts)
+      });
+      if (response.ok) {
+        const location = response.headers.get('Location');
+        if (location) {
+          const id = location.split('/').pop();
+          if (id) {
+            setSyncId(id);
+            alert('클라우드 동기화가 활성화되었습니다!');
+          }
+        }
+      }
+    } catch (e) {
+      alert('클라우드 서버 연결에 실패했습니다.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const joinSync = async (idToJoin?: string) => {
+    const id = idToJoin || inputSyncId;
+    if (!id.trim()) return;
+    setIsSyncing(true);
+    try {
+      const response = await fetch(`https://jsonblob.com/api/jsonBlob/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setAccounts(data);
+          setSyncId(id);
+          setShowSyncModal(false);
+          alert('동기화에 성공했습니다!');
+        }
+      } else {
+        alert('잘못된 동기화 코드이거나 데이터를 찾을 수 없습니다.');
+      }
+    } catch (e) {
+      alert('데이터를 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const refreshSync = async () => {
+    if (!syncId) return;
+    setIsSyncing(true);
+    try {
+      const response = await fetch(`https://jsonblob.com/api/jsonBlob/${syncId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setAccounts(data);
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        }
+      }
+    } catch (e) {
+      setSaveStatus('error');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const getSyncUrl = () => {
+    if (!syncId) return window.location.href.split('#')[0];
+    const baseUrl = window.location.href.split('#')[0];
+    return `${baseUrl}#${syncId}`;
+  };
 
   const addAccount = () => {
     if (!newAccountName.trim()) return;
@@ -114,13 +251,34 @@ function App() {
             fontSize: '0.8rem', 
             color: saveStatus === 'error' ? '#ef4444' : saveStatus === 'saved' ? '#10b981' : '#94a3b8',
             transition: 'all 0.3s ease',
-            opacity: saveStatus === 'idle' ? 0 : 1,
+            opacity: saveStatus === 'idle' && !isSyncing ? 0 : 1,
             display: 'flex',
             alignItems: 'center',
             gap: '4px'
           }}>
-            <Save size={14} /> {saveStatus === 'saving' ? '저장 중...' : saveStatus === 'saved' ? '저장됨' : '저장 오류'}
+            <Save size={14} className={isSyncing ? 'spin' : ''} /> {isSyncing ? '동기화 중...' : saveStatus === 'saving' ? '저장 중...' : saveStatus === 'saved' ? '저장됨' : '저장 오류'}
           </span>
+          
+          <button 
+            onClick={() => setShowSyncModal(true)} 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              background: syncId ? '#0369a1' : '#334155',
+              borderColor: syncId ? '#0ea5e9' : 'transparent'
+            }}
+          >
+            {syncId ? <Cloud size={18} /> : <CloudOff size={18} />}
+            {syncId ? '동기화 중' : '클라우드 동기화'}
+          </button>
+
+          {syncId && (
+            <button onClick={refreshSync} title="새로고침" style={{ padding: '10px', background: '#334155' }}>
+              <RefreshCw size={18} className={isSyncing ? 'spin' : ''} />
+            </button>
+          )}
+
           <button onClick={exportData} title="백업 내보내기" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#334155' }}>
             <Download size={18} /> 백업
           </button>
@@ -143,6 +301,89 @@ function App() {
           </button>
         </div>
       </header>
+
+      {showSyncModal && (
+        <div className="modal-overlay" onClick={() => setShowSyncModal(false)} style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem'
+        }}>
+          <div className="card fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', width: '100%', border: '1px solid #38bdf8' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Cloud size={24} style={{ color: '#38bdf8' }} /> 클라우드 동기화
+              </h2>
+              <button onClick={() => setShowSyncModal(false)} style={{ background: 'transparent', padding: '4px' }}>✕</button>
+            </div>
+
+            {syncId ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#94a3b8' }}>이 주소를 북마크하거나 폰으로 공유하세요</p>
+                  
+                  <div style={{ background: 'white', padding: '10px', display: 'inline-block', borderRadius: '8px', marginBottom: '15px' }}>
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(getSyncUrl())}`} 
+                      alt="Sync QR Code" 
+                      style={{ display: 'block' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      readOnly 
+                      value={getSyncUrl()} 
+                      style={{ flex: 1, fontSize: '0.8rem', background: '#0f172a' }} 
+                    />
+                    <button onClick={() => {
+                      navigator.clipboard.writeText(getSyncUrl());
+                      alert('동기화 주소가 복사되었습니다. 다른 기기에서 이 주소로 접속하세요!');
+                    }} style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>링크 복사</button>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button onClick={refreshSync} disabled={isSyncing} style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                    <RefreshCw size={18} className={isSyncing ? 'spin' : ''} /> 지금 새로고침
+                  </button>
+                  <button onClick={() => {
+                    if (confirm('동기화를 중단하시겠습니까? 주소의 코드가 삭제되며 로컬 데이터만 남습니다.')) {
+                      setSyncId(null);
+                      setShowSyncModal(false);
+                    }
+                  }} style={{ flex: 1, background: '#ef4444', color: 'white' }}>동기화 해제</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                  <p style={{ color: '#cbd5e1' }}>클라우드 동기화를 통해 여러 기기에서<br/>실시간으로 데이터를 공유할 수 있습니다.</p>
+                  <button 
+                    onClick={startCloudSync} 
+                    disabled={isSyncing}
+                    style={{ marginTop: '1rem', padding: '12px 24px', fontSize: '1.1rem' }}
+                  >
+                    새 클라우드 동기화 시작
+                  </button>
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
+                  <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#94a3b8' }}>기존 동기화 코드로 참여하기</p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      type="text" 
+                      placeholder="동기화 코드 입력" 
+                      value={inputSyncId}
+                      onChange={e => setInputSyncId(e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <button onClick={() => joinSync()} disabled={isSyncing}>참여</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {isAddingAccount && (
         <div className="card fade-in" style={{ marginBottom: '2rem' }}>
