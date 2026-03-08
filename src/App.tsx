@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Account } from './types/game';
 import { AION2_SERVERS, AION2_CLASSES, INITIAL_TRACKERS } from './types/game';
-import { Users, Plus, Clock, Download, Upload, Save, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { Users, Plus, Clock, Download, Upload, Save, Cloud, CloudOff, RefreshCw, Check, X } from 'lucide-react';
 import { calculateCurrentStatus } from './utils/ticketCalculator';
 
 function App() {
@@ -522,6 +522,9 @@ function AccountCard({ account, setAccounts }: { account: Account, setAccounts: 
   const [charClass, setCharClass] = useState(AION2_CLASSES[0]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [confirmingDeleteCharId, setConfirmingDeleteCharId] = useState<string | null>(null);
+  const [editingCharId, setEditingCharId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editClass, setEditClass] = useState(AION2_CLASSES[0]);
 
   const addCharacter = () => {
     if (!charName.trim()) return;
@@ -537,6 +540,20 @@ function AccountCard({ account, setAccounts }: { account: Account, setAccounts: 
     ));
     setCharName('');
     setIsAddingChar(false);
+  };
+
+  const updateCharacter = () => {
+    if (!editingCharId || !editName.trim()) return;
+    setAccounts(prev => prev.map(acc => {
+      if (String(acc.id) !== String(account.id)) return acc;
+      return {
+        ...acc,
+        characters: acc.characters.map(c => 
+          String(c.id) === String(editingCharId) ? { ...c, name: editName, class: editClass } : c
+        )
+      };
+    }));
+    setEditingCharId(null);
   };
 
   const removeAccount = () => {
@@ -658,45 +675,84 @@ function AccountCard({ account, setAccounts }: { account: Account, setAccounts: 
         ) : (
           account.characters.map((char, index) => (
             <div key={char.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600 }}>
-                  {char.name} 
-                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400, marginLeft: '4px' }}>
-                    ({char.class})
-                  </span>
-                </span>
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', gap: '2px' }}>
-                    <button 
-                      onClick={() => moveCharacter(char.id, 'up')} 
-                      disabled={index === 0}
-                      style={{ padding: '2px 6px', fontSize: '0.7rem', background: index === 0 ? 'transparent' : '#334155', opacity: index === 0 ? 0.3 : 1 }}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'center', minHeight: '32px' }}>
+                {editingCharId === char.id ? (
+                  <div style={{ display: 'flex', gap: '4px', flex: 1, marginRight: '8px' }}>
+                    <input 
+                      type="text" 
+                      value={editName} 
+                      onChange={(e) => setEditName(e.target.value)} 
+                      style={{ flex: 2, padding: '2px 6px', fontSize: '0.85rem' }}
+                      placeholder="이름"
+                    />
+                    <select 
+                      value={editClass} 
+                      onChange={(e) => setEditClass(e.target.value)}
+                      style={{ flex: 1, padding: '2px 6px', fontSize: '0.85rem' }}
                     >
-                      ↑
+                      {AION2_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <button onClick={updateCharacter} style={{ padding: '2px 6px', background: '#10b981', color: 'white' }}>
+                      <Check size={14} />
                     </button>
-                    <button 
-                      onClick={() => moveCharacter(char.id, 'down')} 
-                      disabled={index === account.characters.length - 1}
-                      style={{ padding: '2px 6px', fontSize: '0.7rem', background: index === account.characters.length - 1 ? 'transparent' : '#334155', opacity: index === account.characters.length - 1 ? 0.3 : 1 }}
-                    >
-                      ↓
+                    <button onClick={() => setEditingCharId(null)} style={{ padding: '2px 6px', background: '#334155', color: 'white' }}>
+                      <X size={14} />
                     </button>
                   </div>
-                  {confirmingDeleteCharId === char.id ? (
-                    <div className="fade-in" style={{ display: 'flex', gap: '2px', alignItems: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 4px', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                      <span style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 600 }}>삭제?</span>
-                      <button onClick={() => removeCharacter(char.id)} style={{ padding: '1px 4px', fontSize: '0.65rem', background: '#ef4444', color: 'white', border: 'none' }}>예</button>
-                      <button onClick={() => setConfirmingDeleteCharId(null)} style={{ padding: '1px 4px', fontSize: '0.65rem', background: '#334155', color: 'white', border: 'none' }}>아니오</button>
+                ) : (
+                  <>
+                    <span style={{ fontWeight: 600 }}>
+                      {char.name} 
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400, marginLeft: '4px' }}>
+                        ({char.class})
+                      </span>
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '2px' }}>
+                        <button 
+                          onClick={() => moveCharacter(char.id, 'up')} 
+                          disabled={index === 0}
+                          style={{ padding: '2px 6px', fontSize: '0.7rem', background: index === 0 ? 'transparent' : '#334155', opacity: index === 0 ? 0.3 : 1 }}
+                        >
+                          ↑
+                        </button>
+                        <button 
+                          onClick={() => moveCharacter(char.id, 'down')} 
+                          disabled={index === account.characters.length - 1}
+                          style={{ padding: '2px 6px', fontSize: '0.7rem', background: index === account.characters.length - 1 ? 'transparent' : '#334155', opacity: index === account.characters.length - 1 ? 0.3 : 1 }}
+                        >
+                          ↓
+                        </button>
+                      </div>
+                      
+                      <button 
+                        onClick={() => {
+                          setEditingCharId(char.id);
+                          setEditName(char.name);
+                          setEditClass(char.class);
+                        }} 
+                        style={{ padding: '2px 6px', fontSize: '0.7rem', background: 'transparent', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.2)' }}
+                      >
+                        수정
+                      </button>
+
+                      {confirmingDeleteCharId === char.id ? (
+                        <div className="fade-in" style={{ display: 'flex', gap: '2px', alignItems: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 4px', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                          <span style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 600 }}>삭제?</span>
+                          <button onClick={() => removeCharacter(char.id)} style={{ padding: '1px 4px', fontSize: '0.65rem', background: '#ef4444', color: 'white', border: 'none' }}>예</button>
+                          <button onClick={() => setConfirmingDeleteCharId(null)} style={{ padding: '1px 4px', fontSize: '0.65rem', background: '#334155', color: 'white', border: 'none' }}>아니오</button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setConfirmingDeleteCharId(char.id)} 
+                          style={{ padding: '2px 6px', fontSize: '0.7rem', background: 'transparent', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                        >
+                          삭제
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <button 
-                      onClick={() => setConfirmingDeleteCharId(char.id)} 
-                      style={{ padding: '2px 6px', fontSize: '0.7rem', background: 'transparent', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
-                    >
-                      삭제
-                    </button>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
               {char.trackers.map(tracker => (
                 <TrackerRow 
