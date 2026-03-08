@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Account } from './types/game';
 import { AION2_SERVERS, AION2_CLASSES, INITIAL_TRACKERS } from './types/game';
-import { Users, Plus, Clock, Download, Upload, Save, Cloud, CloudOff, RefreshCw, Check, X } from 'lucide-react';
+import { Users, Plus, Clock, Download, Upload, Save, Cloud, CloudOff, RefreshCw, Check, X, AlertTriangle } from 'lucide-react';
 import { calculateCurrentStatus } from './utils/ticketCalculator';
 
 function App() {
@@ -61,6 +61,12 @@ function App() {
   useEffect(() => {
     localStorage.setItem('aion2_gh_token', ghToken);
   }, [ghToken]);
+
+  useEffect(() => {
+    if (gistId && !ghToken) {
+      setShowSyncModal(true);
+    }
+  }, [gistId, ghToken]);
 
   useEffect(() => {
     if (gistId) {
@@ -124,13 +130,15 @@ function App() {
 
   useEffect(() => {
     const initCloudData = async () => {
-      const hashId = window.location.hash.replace('#', '');
-      const initialId = hashId || localStorage.getItem('aion2_gist_id');
-      if (initialId && accounts.length === 0 && ghToken) {
+      if (gistId && accounts.length === 0 && ghToken) {
         setIsSyncing(true);
         try {
-          const response = await fetch(`${API_BASE_URL}/${initialId}`, {
-            headers: getHeaders()
+          const response = await fetch(`${API_BASE_URL}/${gistId}`, {
+            headers: {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': `Bearer ${ghToken}`,
+              'X-GitHub-Api-Version': '2022-11-28'
+            }
           });
           if (response.ok) {
             const data = await response.json();
@@ -148,7 +156,7 @@ function App() {
       }
     };
     initCloudData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gistId, ghToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startCloudSync = async () => {
     if (!ghToken.trim()) {
@@ -424,6 +432,15 @@ function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ textAlign: 'center', padding: '1rem 0', background: 'rgba(15, 23, 42, 0.5)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <h3 style={{ margin: '0 0 1rem 0', color: '#e0e0e0', fontSize: '1rem' }}>GitHub Gist 동기화 설정</h3>
+                  {gistId && !ghToken && (
+                    <div style={{ padding: '10px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.2)', borderRadius: '8px', margin: '0 1rem 1rem 1rem', color: '#fbbf24', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left' }}>
+                      <AlertTriangle size={24} style={{ flexShrink: 0 }} /> 
+                      <div>
+                        <strong>Gist ID 감지됨:</strong><br/>
+                        데이터를 동기화하려면 GitHub 토큰을 먼저 입력해야 합니다.
+                      </div>
+                    </div>
+                  )}
                   <p style={{ color: '#94a3b8', fontSize: '0.85rem', lineHeight: '1.5', marginBottom: '1rem' }}>
                     데이터를 안전하게 내 GitHub Gist에 저장합니다.<br/>
                     발급받은 <strong>Personal Access Token (classic)</strong>을 입력해주세요.
