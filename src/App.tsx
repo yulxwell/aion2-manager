@@ -114,11 +114,11 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('aion2_rmt_data', JSON.stringify(accounts));
+  }, [accounts]);
+
+  const manualSave = async () => {
     if (gistId) {
-      const handler = setTimeout(() => {
-        saveToCloud(accounts, gistId);
-      }, 2000);
-      return () => clearTimeout(handler);
+      await saveToCloud(accounts, gistId);
     } else {
       setSaveStatus('saving');
       setTimeout(() => {
@@ -126,7 +126,7 @@ function App() {
         setTimeout(() => setSaveStatus('idle'), 3000);
       }, 500);
     }
-  }, [accounts, gistId]);
+  };
 
   useEffect(() => {
     const initCloudData = async () => {
@@ -524,7 +524,7 @@ function App() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem' }}>
             {accounts.map(account => (
-              <AccountCard key={account.id} account={account} setAccounts={setAccounts} />
+              <AccountCard key={account.id} account={account} setAccounts={setAccounts} manualSave={manualSave} />
             ))}
           </div>
         )}
@@ -533,7 +533,7 @@ function App() {
   );
 }
 
-function AccountCard({ account, setAccounts }: { account: Account, setAccounts: React.Dispatch<React.SetStateAction<Account[]>> }) {
+function AccountCard({ account, setAccounts, manualSave }: { account: Account, setAccounts: React.Dispatch<React.SetStateAction<Account[]>>, manualSave: () => Promise<void> }) {
   const [isAddingChar, setIsAddingChar] = useState(false);
   const [charName, setCharName] = useState('');
   const [charClass, setCharClass] = useState(AION2_CLASSES[0]);
@@ -718,12 +718,30 @@ function AccountCard({ account, setAccounts }: { account: Account, setAccounts: 
                   </div>
                 ) : (
                   <>
-                    <span style={{ fontWeight: 600 }}>
-                      {char.name} 
-                      <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400, marginLeft: '4px' }}>
-                        ({char.class})
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 600 }}>
+                        {char.name} 
+                        <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400, marginLeft: '4px' }}>
+                          ({char.class})
+                        </span>
                       </span>
-                    </span>
+                      <button 
+                        onClick={manualSave}
+                        style={{ 
+                          padding: '2px 8px', 
+                          fontSize: '0.75rem', 
+                          background: '#1e293b', 
+                          color: '#38bdf8', 
+                          border: '1px solid #38bdf8', 
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <Save size={12} /> 저장
+                      </button>
+                    </div>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <div style={{ display: 'flex', gap: '2px' }}>
                         <button 
