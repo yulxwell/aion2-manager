@@ -25,8 +25,14 @@ function App() {
 
           // 2. 기존 trackers에 누락된 항목(초월, 악몽, 슈고페스타 등)이 있는 경우 추가
           INITIAL_TRACKERS.forEach(initialTracker => {
-            if (!updatedTrackers.find(t => t.id === initialTracker.id)) {
+            const existing = updatedTrackers.find(t => t.id === initialTracker.id);
+            if (!existing) {
               updatedTrackers.push({ ...initialTracker, lastUpdatedAt: Date.now() });
+            } else {
+              // 설명(description) 등 변경된 스펙 업데이트
+              existing.description = initialTracker.description;
+              existing.schedule = initialTracker.schedule;
+              existing.maxCount = initialTracker.maxCount;
             }
           });
           
@@ -842,7 +848,12 @@ function TrackerRow({ tracker, onUpdateCount }: { tracker: any, onUpdateCount: (
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '10px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', alignItems: 'center' }}>
-        <span style={{ color: '#cbd5e1' }}>{tracker.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ color: '#cbd5e1' }}>{tracker.name}</span>
+          {tracker.description && (
+            <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 400 }}>({tracker.description})</span>
+          )}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isEditing ? (
             <div style={{ display: 'flex', gap: '4px' }}>

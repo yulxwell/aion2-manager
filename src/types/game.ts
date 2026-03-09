@@ -11,6 +11,7 @@ export interface TrackerStatus {
   maxCount: number;
   lastUpdatedAt: number; // Timestamp
   schedule: RechargeSchedule;
+  description?: string;
 }
 
 export interface Character {
@@ -43,34 +44,39 @@ export const INITIAL_TRACKERS: Omit<TrackerStatus, 'lastUpdatedAt'>[] = [
     name: '정복티켓', 
     currentCount: 0, 
     maxCount: 21, 
-    schedule: { type: 'fixed_times', times: [5, 13, 21], amount: 1 } 
+    schedule: { type: 'fixed_times', times: [5, 13, 21], amount: 1 },
+    description: '8시간마다 1장'
   },
   { 
     id: 'ode', 
     name: '오드에너지', 
     currentCount: 0, 
     maxCount: 840, 
-    schedule: { type: 'fixed_times', times: [2, 5, 8, 11, 14, 17, 20, 23], amount: 15 } 
+    schedule: { type: 'fixed_times', times: [2, 5, 8, 11, 14, 17, 20, 23], amount: 15 },
+    description: '3시간마다 15장'
   },
   { 
     id: 'transcendence', 
     name: '초월', 
     currentCount: 0, 
     maxCount: 14, 
-    schedule: { type: 'fixed_times', times: [5], amount: 2 } 
+    schedule: { type: 'fixed_times', times: [5], amount: 2 },
+    description: '24시간마다 2장'
   },
   { 
     id: 'nightmare', 
     name: '악몽', 
     currentCount: 0, 
     maxCount: 14, 
-    schedule: { type: 'fixed_times', times: [5], amount: 2 } 
+    schedule: { type: 'fixed_times', times: [5], amount: 2 },
+    description: '24시간마다 2장'
   },
   { 
     id: 'shugo', 
     name: '슈고페스타', 
     currentCount: 0, 
     maxCount: 14, 
-    schedule: { type: 'fixed_times', times: [5], amount: 4 } 
+    schedule: { type: 'fixed_times', times: [5], amount: 4 },
+    description: '24시간마다 4장'
   },
 ];
