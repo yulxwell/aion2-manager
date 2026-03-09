@@ -118,11 +118,12 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    localStorage.setItem('aion2_rmt_data', JSON.stringify(accounts));
-  }, [accounts]);
+  // Removed automatic LocalStorage sync to allow manual saving prioritization
 
   const manualSave = async () => {
+    // Save to LocalStorage first for immediate local persistence
+    localStorage.setItem('aion2_rmt_data', JSON.stringify(accounts));
+
     if (gistId) {
       await saveToCloud(accounts, gistId);
     } else {
@@ -136,7 +137,8 @@ function App() {
 
   useEffect(() => {
     const initCloudData = async () => {
-      if (gistId && accounts.length === 0 && ghToken) {
+      // Prioritize Cloud (Gist) data if it exists
+      if (gistId && ghToken) {
         setIsSyncing(true);
         try {
           const response = await fetch(`${API_BASE_URL}/${gistId}`, {
@@ -151,7 +153,12 @@ function App() {
             const file = data.files['aion2_data.json'];
             if (file && file.content) {
               const parsed = JSON.parse(file.content);
-              if (Array.isArray(parsed)) setAccounts(parsed);
+              if (Array.isArray(parsed)) {
+                setAccounts(parsed);
+                // Also update localStorage with the authoritative cloud data
+                localStorage.setItem('aion2_rmt_data', JSON.stringify(parsed));
+                console.log('Cloud data loaded and synced to LocalStorage');
+              }
             }
           }
         } catch (e) {
