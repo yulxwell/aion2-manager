@@ -53,7 +53,7 @@ export const INITIAL_TRACKERS: Omit<TrackerStatus, 'lastUpdatedAt'>[] = [
     currentCount: 0, 
     maxCount: 840, 
     schedule: { type: 'fixed_times', times: [2, 5, 8, 11, 14, 17, 20, 23], amount: 15 },
-    description: '3시간마다 15장'
+    description: '3시간마다 15개'
   },
   { 
     id: 'transcendence', 
