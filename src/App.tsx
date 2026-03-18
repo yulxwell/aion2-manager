@@ -4,6 +4,39 @@ import { AION2_SERVERS, AION2_CLASSES, INITIAL_TRACKERS } from './types/game';
 import { Users, Plus, Clock, Download, Upload, Save, Cloud, CloudOff, RefreshCw, Check, X, AlertTriangle } from 'lucide-react';
 import { calculateCurrentStatus } from './utils/ticketCalculator';
 
+const migrateAccountsData = (parsed: Account[] | null): Account[] => {
+  return (parsed || []).map(acc => ({
+    ...acc,
+    characters: (acc.characters || []).map(char => {
+      let updatedTrackers = char.trackers || [];
+      
+      // 1. dungeons에서 trackers로 전환하는 경우
+      if ((char as any).dungeons && !char.trackers) {
+        updatedTrackers = INITIAL_TRACKERS.map(t => ({ ...t, lastUpdatedAt: Date.now() }));
+      }
+
+      // 2. 기존 trackers에 누락된 항목(초월, 악몽, 슈고페스타 등)이 있는 경우 추가 및 스펙 업데이트
+      INITIAL_TRACKERS.forEach(initialTracker => {
+        const existing = updatedTrackers.find(t => t.id === initialTracker.id);
+        if (!existing) {
+          updatedTrackers.push({ ...initialTracker, lastUpdatedAt: Date.now() });
+        } else {
+          // 설명(description) 등 변경된 스펙 업데이트
+          existing.description = initialTracker.description;
+          existing.schedule = initialTracker.schedule;
+          existing.maxCount = initialTracker.maxCount;
+          existing.isCheckbox = initialTracker.isCheckbox;
+        }
+      });
+      
+      return {
+        ...char,
+        trackers: updatedTrackers
+      };
+    })
+  }));
+};
+
 function App() {
   console.log('App Rendering...');
   const [accounts, setAccounts] = useState<Account[]>(() => {
@@ -11,37 +44,7 @@ function App() {
       const saved = localStorage.getItem('aion2_rmt_data');
       if (!saved) return [];
       const parsed = JSON.parse(saved) as Account[];
-      
-      // 구버전 데이터 마이그레이션 (dungeons -> trackers 및 누락된 트래커 추가)
-      return (parsed || []).map(acc => ({
-        ...acc,
-        characters: (acc.characters || []).map(char => {
-          let updatedTrackers = char.trackers || [];
-          
-          // 1. dungeons에서 trackers로 전환하는 경우
-          if ((char as any).dungeons && !char.trackers) {
-            updatedTrackers = INITIAL_TRACKERS.map(t => ({ ...t, lastUpdatedAt: Date.now() }));
-          }
-
-          // 2. 기존 trackers에 누락된 항목(초월, 악몽, 슈고페스타 등)이 있는 경우 추가
-          INITIAL_TRACKERS.forEach(initialTracker => {
-            const existing = updatedTrackers.find(t => t.id === initialTracker.id);
-            if (!existing) {
-              updatedTrackers.push({ ...initialTracker, lastUpdatedAt: Date.now() });
-            } else {
-              // 설명(description) 등 변경된 스펙 업데이트
-              existing.description = initialTracker.description;
-              existing.schedule = initialTracker.schedule;
-              existing.maxCount = initialTracker.maxCount;
-            }
-          });
-          
-          return {
-            ...char,
-            trackers: updatedTrackers
-          };
-        })
-      }));
+      return migrateAccountsData(parsed);
     } catch (e) {
       console.error('Failed to load data from localStorage', e);
       return [];
@@ -154,9 +157,10 @@ function App() {
             if (file && file.content) {
               const parsed = JSON.parse(file.content);
               if (Array.isArray(parsed)) {
-                setAccounts(parsed);
+                const migrated = migrateAccountsData(parsed);
+                setAccounts(migrated);
                 // Also update localStorage with the authoritative cloud data
-                localStorage.setItem('aion2_rmt_data', JSON.stringify(parsed));
+                localStorage.setItem('aion2_rmt_data', JSON.stringify(migrated));
                 console.log('Cloud data loaded and synced to LocalStorage');
               }
             }
@@ -224,7 +228,8 @@ function App() {
         if (file && file.content) {
           const parsed = JSON.parse(file.content);
           if (Array.isArray(parsed)) {
-            setAccounts(parsed);
+            const migrated = migrateAccountsData(parsed);
+            setAccounts(migrated);
             setGistId(id);
             setShowSyncModal(false);
             alert('동기화에 성공했습니다!');
@@ -255,7 +260,8 @@ function App() {
         if (file && file.content) {
           const parsed = JSON.parse(file.content);
           if (Array.isArray(parsed)) {
-            setAccounts(parsed);
+            const migrated = migrateAccountsData(parsed);
+            setAccounts(migrated);
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 2000);
           }
@@ -306,7 +312,7 @@ function App() {
       try {
         const parsed = JSON.parse(evt.target?.result as string);
         if (Array.isArray(parsed)) {
-          setAccounts(parsed);
+          setAccounts(migrateAccountsData(parsed));
           alert('데이터를 성공적으로 불러왔습니다.');
         }
       } catch (err) {
