@@ -838,6 +838,11 @@ function TrackerRow({ tracker, onUpdateCount }: { tracker: any, onUpdateCount: (
     setIsEditing(false);
   };
 
+  const handleCheckboxToggle = () => {
+    const newCount = status.currentCount === 0 ? 1 : 0;
+    onUpdateCount(newCount);
+  };
+
   const formatTime = (ts: number) => {
     const date = new Date(ts);
     const hours = date.getHours();
@@ -851,6 +856,36 @@ function TrackerRow({ tracker, onUpdateCount }: { tracker: any, onUpdateCount: (
     const day = date.getDate();
     return `${day}일 ${formatTime(ts)}`;
   };
+
+  if (tracker.isCheckbox) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', padding: '4px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>{tracker.name}</span>
+          {tracker.description && (
+            <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 400 }}>({tracker.description})</span>
+          )}
+        </div>
+        <div 
+          onClick={handleCheckboxToggle}
+          style={{ 
+            width: '20px', 
+            height: '20px', 
+            borderRadius: '4px', 
+            border: '2px solid #38bdf8', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            cursor: 'pointer',
+            background: status.currentCount > 0 ? '#38bdf8' : 'transparent',
+            transition: 'all 0.2s'
+          }}
+        >
+          {status.currentCount > 0 && <Check size={14} color="white" />}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '10px' }}>

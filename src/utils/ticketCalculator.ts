@@ -13,6 +13,48 @@ export function calculateCurrentStatus(tracker: TrackerStatus, nowOverride?: num
   let tempCount = tracker.currentCount;
   let lastUpdate = tracker.lastUpdatedAt;
 
+  const { type, times, amount, resetDay, resetHour } = tracker.schedule;
+
+  if (type === 'weekly_reset' && resetDay !== undefined && resetHour !== undefined) {
+    // Check if the current time has passed the reset time since the last update
+    const lastUpdateDate = new Date(lastUpdate);
+    const nowDate = new Date(now);
+
+    // Find the most recent reset time before 'now'
+    const lastResetDate = new Date(now);
+    lastResetDate.setHours(resetHour, 0, 0, 0);
+    
+    let daysToSubtract = lastResetDate.getDay() - resetDay;
+    if (daysToSubtract < 0) {
+      daysToSubtract += 7;
+    }
+    
+    // If today is the reset day but we haven't reached the reset hour yet, the last reset was a week ago
+    if (daysToSubtract === 0 && nowDate.getHours() < resetHour) {
+      daysToSubtract = 7;
+    }
+
+    lastResetDate.setDate(lastResetDate.getDate() - daysToSubtract);
+
+    // If the last update was before the most recent reset time, set count to 0
+    if (lastUpdateDate.getTime() < lastResetDate.getTime()) {
+      tempCount = 0;
+    } else {
+      tempCount = tracker.currentCount;
+    }
+
+    // Calculate next recharge (next reset time)
+    const nextResetDate = new Date(lastResetDate);
+    nextResetDate.setDate(nextResetDate.getDate() + 7);
+
+    return {
+      currentCount: tempCount,
+      nextRechargeAt: nextResetDate.getTime(),
+      remainingMinutes: Math.ceil((nextResetDate.getTime() - now) / (1000 * 60)),
+      limitReachedAt: null
+    };
+  }
+
   if (tempCount >= tracker.maxCount) {
     return {
       currentCount: tracker.maxCount,
@@ -21,8 +63,6 @@ export function calculateCurrentStatus(tracker: TrackerStatus, nowOverride?: num
       limitReachedAt: null
     };
   }
-
-  const { times, amount } = tracker.schedule;
 
   // 안전장치: 너무 오래된 데이터일 경우 루프 방지
   const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);

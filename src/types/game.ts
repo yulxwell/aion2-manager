@@ -1,7 +1,9 @@
 export interface RechargeSchedule {
-  type: 'fixed_times';
+  type: 'fixed_times' | 'weekly_reset';
   times: number[]; // Hours in 0-23 KST
   amount: number;
+  resetDay?: number; // 0 (Sun) to 6 (Sat)
+  resetHour?: number; // 0 to 23
 }
 
 export interface TrackerStatus {
@@ -12,6 +14,7 @@ export interface TrackerStatus {
   lastUpdatedAt: number; // Timestamp
   schedule: RechargeSchedule;
   description?: string;
+  isCheckbox?: boolean;
 }
 
 export interface Character {
@@ -76,7 +79,34 @@ export const INITIAL_TRACKERS: Omit<TrackerStatus, 'lastUpdatedAt'>[] = [
     name: '슈고페스타', 
     currentCount: 0, 
     maxCount: 14, 
-    schedule: { type: 'fixed_times', times: [5], amount: 4 },
-    description: '24시간마다 4장'
+    schedule: { type: 'fixed_times', times: [5], amount: 2 },
+    description: '24시간마다 2장'
+  },
+  { 
+    id: 'daily_dungeon', 
+    name: '일일던전', 
+    currentCount: 0, 
+    maxCount: 1, 
+    schedule: { type: 'weekly_reset', times: [], amount: 1, resetDay: 3, resetHour: 5 }, // Wed 5 AM
+    description: '수요일 오전 5시 리셋',
+    isCheckbox: true
+  },
+  { 
+    id: 'awakening', 
+    name: '각성전', 
+    currentCount: 0, 
+    maxCount: 1, 
+    schedule: { type: 'weekly_reset', times: [], amount: 1, resetDay: 3, resetHour: 5 }, // Wed 5 AM
+    description: '수요일 오전 5시 리셋',
+    isCheckbox: true
+  },
+  { 
+    id: 'subjugation', 
+    name: '토벌전', 
+    currentCount: 0, 
+    maxCount: 1, 
+    schedule: { type: 'weekly_reset', times: [], amount: 1, resetDay: 3, resetHour: 5 }, // Wed 5 AM
+    description: '수요일 오전 5시 리셋',
+    isCheckbox: true
   },
 ];
