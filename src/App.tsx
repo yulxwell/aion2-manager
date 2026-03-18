@@ -29,6 +29,13 @@ const migrateAccountsData = (parsed: Account[] | null): Account[] => {
         }
       });
       
+      // tracker 순서를 INITIAL_TRACKERS 배열의 순서대로 정렬
+      updatedTrackers.sort((a, b) => {
+        const indexA = INITIAL_TRACKERS.findIndex(t => t.id === a.id);
+        const indexB = INITIAL_TRACKERS.findIndex(t => t.id === b.id);
+        return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+      });
+      
       return {
         ...char,
         trackers: updatedTrackers

@@ -1,5 +1,5 @@
 export interface RechargeSchedule {
-  type: 'fixed_times' | 'weekly_reset';
+  type: 'fixed_times' | 'weekly_reset' | 'daily_reset';
   times: number[]; // Hours in 0-23 KST
   amount: number;
   resetDay?: number; // 0 (Sun) to 6 (Sat)
@@ -81,6 +81,15 @@ export const INITIAL_TRACKERS: Omit<TrackerStatus, 'lastUpdatedAt'>[] = [
     maxCount: 14, 
     schedule: { type: 'fixed_times', times: [5], amount: 2 },
     description: '24시간마다 2장'
+  },
+  { 
+    id: 'mission', 
+    name: '사명', 
+    currentCount: 0, 
+    maxCount: 1, 
+    schedule: { type: 'daily_reset', times: [], amount: 1, resetHour: 5 },
+    description: '매일 오전 5시 리셋',
+    isCheckbox: true
   },
   { 
     id: 'daily_dungeon', 

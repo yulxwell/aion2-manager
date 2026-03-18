@@ -55,6 +55,32 @@ export function calculateCurrentStatus(tracker: TrackerStatus, nowOverride?: num
     };
   }
 
+  if (type === 'daily_reset' && resetHour !== undefined) {
+    const lastUpdateDate = new Date(lastUpdate);
+    const nowDate = new Date(now);
+
+    const lastResetDate = new Date(now);
+    lastResetDate.setHours(resetHour, 0, 0, 0);
+
+    if (nowDate.getHours() < resetHour) {
+      lastResetDate.setDate(lastResetDate.getDate() - 1);
+    }
+
+    if (lastUpdateDate.getTime() < lastResetDate.getTime()) {
+      tempCount = 0;
+    }
+
+    const nextResetDate = new Date(lastResetDate);
+    nextResetDate.setDate(nextResetDate.getDate() + 1);
+
+    return {
+      currentCount: tempCount,
+      nextRechargeAt: nextResetDate.getTime(),
+      remainingMinutes: Math.ceil((nextResetDate.getTime() - now) / (1000 * 60)),
+      limitReachedAt: null
+    };
+  }
+
   if (tempCount >= tracker.maxCount) {
     return {
       currentCount: tracker.maxCount,
