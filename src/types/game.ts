@@ -92,6 +92,24 @@ export const INITIAL_TRACKERS: Omit<TrackerStatus, 'lastUpdatedAt'>[] = [
     isCheckbox: true
   },
   { 
+    id: 'abyss_corridor', 
+    name: '어비스 회랑', 
+    currentCount: 0, 
+    maxCount: 1, 
+    schedule: { type: 'daily_reset', times: [], amount: 1, resetHour: 5 },
+    description: '매일 오전 5시 리셋',
+    isCheckbox: true
+  },
+  { 
+    id: 'weekly_mandate', 
+    name: '주간 지령서', 
+    currentCount: 0, 
+    maxCount: 1, 
+    schedule: { type: 'weekly_reset', times: [], amount: 1, resetDay: 3, resetHour: 5 }, // Wed 5 AM
+    description: '수요일 오전 5시 리셋',
+    isCheckbox: true
+  },
+  { 
     id: 'daily_dungeon', 
     name: '일일던전', 
     currentCount: 0, 
